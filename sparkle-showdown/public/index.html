@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>✨ Sparkle Showdown</title>
+<style>
+:root{--pink:#ff4fa3;--purple:#6d5dfc;--blue:#00c2ff;--ink:#231942}
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:var(--ink);min-height:100vh;
+background:radial-gradient(circle at 15% 20%,#fff 0 2px,transparent 3px),radial-gradient(circle at 75% 15%,#fff 0 2px,transparent 3px),
+linear-gradient(135deg,#ffdbf0,#dff8ff 45%,#eee1ff);background-size:120px 120px,170px 170px,auto;overflow-x:hidden}
+body:before{content:"✦  ✧  ✦  ✧  ✦  ✧  ✦  ✧  ✦";position:fixed;inset:0;pointer-events:none;color:#fff8;font-size:34px;letter-spacing:28px;line-height:90px;transform:rotate(-8deg);z-index:-1}
+.wrap{max-width:1050px;margin:auto;padding:24px}.hero{text-align:center}.hero h1{font-size:clamp(34px,7vw,68px);margin:8px 0 4px;font-weight:900;background:linear-gradient(90deg,var(--pink),var(--purple),var(--blue));-webkit-background-clip:text;color:transparent}
+.hero p{margin:0 0 18px;font-weight:700}.card{background:#ffffffdd;border:2px solid #fff;border-radius:28px;box-shadow:0 18px 50px #6d5dfc22;padding:20px;backdrop-filter:blur(10px)}
+.join{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end}.field label{display:block;font-size:13px;font-weight:800;margin:0 0 5px}.field input{width:100%;padding:13px 14px;border:2px solid #e5dcff;border-radius:14px;font-size:16px;outline:none}.field input:focus{border-color:var(--purple)}
+button{border:0;border-radius:14px;padding:13px 18px;font-size:16px;font-weight:900;cursor:pointer;background:linear-gradient(90deg,var(--pink),var(--purple));color:white;min-height:48px}
+button.secondary{background:#fff;color:var(--purple);border:2px solid #e5dcff}.status{margin-top:12px;text-align:center;font-weight:800}.game{margin-top:18px;display:grid;grid-template-columns:1fr 270px;gap:18px}.arena{position:relative;aspect-ratio:16/10;overflow:hidden;border-radius:24px;background:linear-gradient(135deg,#fff7fd,#eafcff);border:3px solid white;box-shadow:inset 0 0 40px #bca9ff44}
+.star{position:absolute;transform:translate(-50%,-50%);font-size:32px;filter:drop-shadow(0 0 10px #ffd34e);transition:opacity .2s}.player{position:absolute;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:50%;border:4px solid white;display:grid;place-items:center;color:white;font-weight:1000;box-shadow:0 5px 16px #0002;transition:left .05s linear,top .05s linear}.name{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);font-size:11px;color:#35245d;white-space:nowrap;font-weight:900}
+.side h2{margin:0 0 10px}.players{display:grid;gap:9px}.p{display:flex;align-items:center;justify-content:space-between;background:#fff;border-radius:14px;padding:10px 12px;border:1px solid #eee}.dot{width:13px;height:13px;border-radius:50%;display:inline-block;margin-right:7px}.rules{margin-top:18px}.rules ol{margin:8px 0 0;padding-left:22px}.rules li{margin:7px 0}.controls{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px}.pad{display:grid;grid-template-columns:repeat(3,52px);gap:7px;justify-content:center}.pad button{padding:0;width:52px}.empty{visibility:hidden}@media(max-width:760px){.join,.game{grid-template-columns:1fr}.game{grid-template-columns:1fr}.arena{aspect-ratio:1/1}.side{order:-1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section class="hero"><h1>✨ Sparkle Showdown ✨</h1><p>Grab the sparkles before the other players do!</p></section>
+<section class="card">
+  <form class="join" id="joinForm">
+    <div class="field"><label for="name">Your name</label><input id="name" maxlength="16" placeholder="Player 1" required></div>
+    <div class="field"><label for="room">Room code</label><input id="room" maxlength="8" placeholder="ABC123" autocomplete="off"></div>
+    <button>Join / Create Room</button>
+  </form>
+  <div class="status" id="status">Create a room and send the same room code to the other player.</div>
+</section>
+<div class="game">
+  <section class="card">
+    <div class="arena" id="arena" aria-label="Sparkle Showdown game arena"></div>
+    <div class="controls">
+      <button class="secondary" id="reset">↻ Reset Round</button>
+    </div>
+    <div class="pad" aria-label="Mobile controls">
+      <button class="empty"></button><button data-dy="-1">▲</button><button class="empty"></button>
+      <button data-dx="-1">◀</button><button data-dy="1">▼</button><button data-dx="1">▶</button>
+    </div>
+  </section>
+  <aside class="card side"><h2>Players</h2><div class="players" id="players"></div>
+    <div class="rules"><h2>How to play</h2><ol><li>Open the game on each device.</li><li>One player creates a room.</li><li>Everyone enters the same room code.</li><li>Use arrow keys, WASD, or the mobile buttons.</li><li>Touch a ⭐ to score a point.</li><li>Highest score wins!</li></ol></div>
+  </aside>
+</div>
+</div>
+<script>
+const $=s=>document.querySelector(s), arena=$("#arena"), playersEl=$("#players"), statusEl=$("#status");
+let ws=null, me=null, keys={};
+function connect(room,name){
+  const proto=location.protocol==="https:"?"wss":"ws";
+  ws=new WebSocket(`${proto}://${location.host}`);
+  ws.onopen=()=>ws.send(JSON.stringify({type:"join",room,name}));
+  ws.onmessage=e=>{const m=JSON.parse(e.data); if(m.type==="error"){statusEl.textContent=m.message;return}
+    if(m.type==="joined"){me=m.id;statusEl.textContent=`Room ${m.room} • Share this code with the other player.`}
+    if(m.type==="state") render(m);
+  };
+  ws.onclose=()=>{statusEl.textContent="Disconnected. Refresh to reconnect.";};
+}
+function render(s){
+  statusEl.textContent=s.status==="ready"?`Room ${s.room} • ${s.players.length} players connected — GO!`:`Room ${s.room} • Waiting for another player…`;
+  arena.innerHTML="";
+  s.stars.forEach(st=>{if(!st.taken){const d=document.createElement("div");d.className="star";d.style.left=st.x+"%";d.style.top=st.y+"%";d.textContent="⭐";arena.appendChild(d)}});
+  s.players.forEach(p=>{const d=document.createElement("div");d.className="player";d.style.left=p.x+"%";d.style.top=p.y+"%";d.style.background=p.color;d.innerHTML=`<span class="name">${p.name} · ${p.score}</span>★`;arena.appendChild(d)});
+  playersEl.innerHTML=s.players.map(p=>`<div class="p"><span><span class="dot" style="background:${p.color}"></span>${p.name}${p.id===me?" (you)":""}</span><b>${p.score}</b></div>`).join("");
+}
+function move(dx,dy){if(ws?.readyState===1)ws.send(JSON.stringify({type:"move",dx,dy}));}
+document.addEventListener("keydown",e=>{if(["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;let dx=0,dy=0;if(e.key==="ArrowLeft"||e.key.toLowerCase()==="a")dx=-1;if(e.key==="ArrowRight"||e.key.toLowerCase()==="d")dx=1;if(e.key==="ArrowUp"||e.key.toLowerCase()==="w")dy=-1;if(e.key==="ArrowDown"||e.key.toLowerCase()==="s")dy=1;if(dx||dy){e.preventDefault();move(dx,dy)}});
+document.querySelectorAll("[data-dx],[data-dy]").forEach(b=>b.addEventListener("click",()=>move(Number(b.dataset.dx||0),Number(b.dataset.dy||0))));
+$("#joinForm").addEventListener("submit",e=>{e.preventDefault(); if(ws)ws.close(); connect($("#room").value.trim().toUpperCase(),$("#name").value.trim())});
+$("#reset").addEventListener("click",()=>{if(ws?.readyState===1)ws.send(JSON.stringify({type:"reset"}))});
+</script>
+</body></html>
